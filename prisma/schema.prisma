@@ -1,12 +1,10 @@
-// Prisma schema for AI CV Generator (Arabic + English)
+// Prisma schema for Azzam — AI Arabic CV Generator
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  // For Vercel/production: PostgreSQL (use Neon, Supabase, or Vercel Postgres)
-  // For local dev: change provider to "sqlite" and use file: URL in .env
-  provider = postgresql
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -15,7 +13,7 @@ model User {
   email     String   @unique
   name      String
   password  String
-  role      String   @default("user") // "user" | "admin"
+  role      String   @default("user")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   resumes   Resume[]
@@ -23,19 +21,19 @@ model User {
 }
 
 model Resume {
-  id           String   @id @default(cuid())
-  userId       String
-  candidateName String  @default("")
-  template     String   @default("classic_noir")
-  font         String   @default("cairo")
-  accentColor  String   @default("#1a1a1a")
-  data         String   // JSON: { ar: {...}, en: {...} }
-  version      Int      @default(1)
-  isTrash      Boolean  @default(false)
-  trashedAt    DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  userId        String
+  candidateName String   @default("")
+  template      String   @default("classic_noir")
+  font          String   @default("cairo")
+  accentColor   String   @default("#1a1a1a")
+  data          String
+  version       Int      @default(1)
+  isTrash       Boolean  @default(false)
+  trashedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
