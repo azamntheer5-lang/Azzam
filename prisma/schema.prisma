@@ -1,0 +1,51 @@
+// Prisma schema for AI CV Generator (Arabic + English)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("user") // "user" | "admin"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  resumes   Resume[]
+  settings  Settings?
+}
+
+model Resume {
+  id           String   @id @default(cuid())
+  userId       String
+  candidateName String  @default("")
+  template     String   @default("classic_noir")
+  font         String   @default("cairo")
+  accentColor  String   @default("#1a1a1a")
+  data         String   // JSON: { ar: {...}, en: {...} }
+  version      Int      @default(1)
+  isTrash      Boolean  @default(false)
+  trashedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Settings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  openaiKey       String   @default("")
+  anthropicKey    String   @default("")
+  ollamaUrl       String   @default("http://localhost:11434")
+  defaultProvider String   @default("zai")
+  defaultModel    String   @default("glm-4.5")
+  temperature     Float    @default(0.4)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
