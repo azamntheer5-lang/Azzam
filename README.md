@@ -134,15 +134,32 @@ bun run dev
 
 ### على Vercel (موصى به)
 
-1. ارفع المستودع إلى GitHub
-2. اذهب إلى https://vercel.com/new
-3. اختر المستودع
-4. أضف متغيرات البيئة:
-   - `DATABASE_URL` (يوصى بقاعدة Postgres على Vercel)
-   - `JWT_SECRET`
+> ⚠️ **مهم**: Vercel لا يدعم SQLite (نظام ملفات read-only). يجب استخدام PostgreSQL.
+
+1. ارفع المستودع إلى GitHub (تم ✓)
+2. أنشئ قاعدة بيانات PostgreSQL مجانية على أحد هذه الخيارات:
+   - **Neon** (موصى به، مجاني تماماً): https://neon.tech
+   - **Supabase**: https://supabase.com
+   - **Vercel Postgres**: https://vercel.com/docs/storage/vercel-postgres
+3. اذهب إلى https://vercel.com/new واختر المستودع
+4. أضف متغيرات البيئة (انظر القسم التالي)
 5. انشر ✨
 
-> ملاحظة: لتشغيل SQLite على Vercel، استخدم Turso أو بدّل إلى Postgres.
+#### متغيرات البيئة المطلوبة على Vercel
+
+| المتغير | الوصف | مثال |
+|---------|------|------|
+| `DATABASE_URL` | رابط PostgreSQL | `postgresql://user:pass@ep-xxx.neon.tech/dbname?sslmode=require` |
+| `JWT_SECRET` | سلسلة عشوائية طويلة (32+ حرف) لتوقيع جلسات المستخدمين | `a8f2c9d4e1b7...` (استخدم `openssl rand -hex 32`) |
+
+> 💡 **مفاتيح الذكاء الاصطناعي** (OpenAI, Anthropic) لا تُضاف في متغيرات البيئة — تُضاف من داخل التطبيق بعد تسجيل الدخول (صفحة "إعدادات API") وتُحفظ في قاعدة البيانات لكل مستخدم على حدة.
+> Z.ai GLM-4.5 يعمل فوراً بدون أي مفتاح.
+
+6. بعد أول نشر، شغّل أمر تهيئة قاعدة البيانات:
+```bash
+npx prisma db push
+```
+(يمكنك تشغيله محلياً مع `DATABASE_URL` الخاص بـ Vercel، أو من Vercel CLI)
 
 ### على خادم خاص
 
