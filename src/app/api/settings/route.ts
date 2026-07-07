@@ -13,6 +13,7 @@ export async function GET() {
     return NextResponse.json({
       openaiKey: '',
       anthropicKey: '',
+      geminiKey: '',
       ollamaUrl: 'http://localhost:11434',
       defaultProvider: 'zai',
       defaultModel: 'glm-4.5',
@@ -23,6 +24,7 @@ export async function GET() {
   return NextResponse.json({
     openaiKey: settings.openaiKey ? `set:${settings.openaiKey.slice(-4)}` : '',
     anthropicKey: settings.anthropicKey ? `set:${settings.anthropicKey.slice(-4)}` : '',
+    geminiKey: settings.geminiKey ? `set:${settings.geminiKey.slice(-4)}` : '',
     ollamaUrl: settings.ollamaUrl,
     defaultProvider: settings.defaultProvider,
     defaultModel: settings.defaultModel,
@@ -37,11 +39,12 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { openaiKey, anthropicKey, ollamaUrl, defaultProvider, defaultModel, temperature } = body
+  const { openaiKey, anthropicKey, geminiKey, ollamaUrl, defaultProvider, defaultModel, temperature } = body
 
   const data: any = {}
   if (openaiKey && !openaiKey.startsWith('set:')) data.openaiKey = openaiKey
   if (anthropicKey && !anthropicKey.startsWith('set:')) data.anthropicKey = anthropicKey
+  if (geminiKey && !geminiKey.startsWith('set:')) data.geminiKey = geminiKey
   if (ollamaUrl !== undefined) data.ollamaUrl = ollamaUrl
   if (defaultProvider !== undefined) data.defaultProvider = defaultProvider
   if (defaultModel !== undefined) data.defaultModel = defaultModel

@@ -43,6 +43,7 @@ model Settings {
   userId          String   @unique
   openaiKey       String   @default("")
   anthropicKey    String   @default("")
+  geminiKey       String   @default("")
   ollamaUrl       String   @default("http://localhost:11434")
   defaultProvider String   @default("zai")
   defaultModel    String   @default("glm-4.5")

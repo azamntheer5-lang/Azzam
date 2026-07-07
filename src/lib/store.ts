@@ -24,6 +24,7 @@ export interface ResumeMeta {
 export interface Settings {
   openaiKey: string
   anthropicKey: string
+  geminiKey: string
   ollamaUrl: string
   defaultProvider: string
   defaultModel: string

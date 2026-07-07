@@ -31,10 +31,12 @@ export function SettingsSheet() {
   const [saving, setSaving] = useState(false)
   const [showOpenaiKey, setShowOpenaiKey] = useState(false)
   const [showAnthropicKey, setShowAnthropicKey] = useState(false)
+  const [showGeminiKey, setShowGeminiKey] = useState(false)
 
   const [form, setForm] = useState<SettingsType>({
     openaiKey: '',
     anthropicKey: '',
+    geminiKey: '',
     ollamaUrl: 'http://localhost:11434',
     defaultProvider: 'zai',
     defaultModel: 'glm-4.5',
@@ -237,6 +239,40 @@ export function SettingsSheet() {
                 className="text-xs text-violet-400 hover:underline"
               >
                 احصل على مفتاح API من Anthropic ←
+              </a>
+            </section>
+
+            {/* Gemini */}
+            <section className="glass rounded-2xl p-4 space-y-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Key className="w-4 h-4 text-sky-400" />
+                مفتاح Google Gemini
+              </h3>
+              <p className="text-xs text-muted-foreground">مطلوب لاستخدام Gemini 1.5 Flash, Gemini 1.5 Pro, Gemini 2.0 Flash</p>
+              <div className="relative">
+                <Input
+                  type={showGeminiKey ? 'text' : 'password'}
+                  value={form.geminiKey.startsWith('set:') ? '' : form.geminiKey}
+                  onChange={(e) => update('geminiKey', e.target.value)}
+                  placeholder={form.geminiKey.startsWith('set:') ? `مُهيأ ••••${form.geminiKey.slice(-3)}` : 'AIza...'}
+                  className="bg-background/50 pl-10"
+                  dir="ltr"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowGeminiKey(!showGeminiKey)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-violet-400 hover:underline"
+              >
+                احصل على مفتاح API من Google AI Studio ←
               </a>
             </section>
 
