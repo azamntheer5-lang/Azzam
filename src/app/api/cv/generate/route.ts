@@ -178,47 +178,93 @@ async function callAnthropic(model: string, apiKey: string, text: string, temper
 }
 
 // ─── Google Gemini (v1beta generateContent endpoint) ───
+// Modern Gemini model names (as of 2026) — old names like "gemini-1.5-flash" return 404
+const GEMINI_MODEL_ALIASES: Record<string, string> = {
+  // Legacy aliases → modern names (auto-fallback)
+  'gemini-1.5-flash': 'gemini-2.0-flash',
+  'gemini-1.5-pro': 'gemini-2.5-pro',
+  'gemini-2.0-flash-exp': 'gemini-2.0-flash',
+  // Modern names pass through
+  'gemini-2.0-flash': 'gemini-2.0-flash',
+  'gemini-2.5-flash': 'gemini-2.5-flash',
+  'gemini-2.5-pro': 'gemini-2.5-pro',
+  'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
+}
+
 async function callGemini(model: string, apiKey: string, text: string, temperature: number): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+  // Resolve legacy model names → current supported ones
+  const resolvedModel = GEMINI_MODEL_ALIASES[model] || model
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT }],
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: `حلّل هذا النص وأنشئ سيرة ذاتية ثنائية اللغة:\n\n${text}` }],
-        },
-      ],
-      generationConfig: {
-        temperature,
-        maxOutputTokens: 4000,
-        responseMimeType: 'application/json',
-      },
-    }),
-  })
+  // Try the resolved model first, fall back to gemini-2.0-flash if 404
+  const modelsToTry = resolvedModel !== 'gemini-2.0-flash'
+    ? [resolvedModel, 'gemini-2.0-flash']
+    : ['gemini-2.0-flash']
 
-  if (!res.ok) {
-    const err = await res.text().catch(() => '')
-    throw new Error(`Gemini error ${res.status}: ${err.slice(0, 300)}`)
+  let lastError = ''
+  for (const modelName of modelsToTry) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: SYSTEM_PROMPT }],
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `حلّل هذا النص وأنشئ سيرة ذاتية ثنائية اللغة:\n\n${text}` }],
+            },
+          ],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: 4000,
+            responseMimeType: 'application/json',
+          },
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.text().catch(() => '')
+        // If 404 (model not found), try next model
+        if (res.status === 404 && modelName !== modelsToTry[modelsToTry.length - 1]) {
+          lastError = `model "${modelName}" returned 404`
+          continue
+        }
+        throw new Error(`Gemini error ${res.status}: ${err.slice(0, 300)}`)
+      }
+
+      const data = await res.json()
+
+      if (data.error) {
+        // If model not found error, try next model
+        if (data.error.status === 'NOT_FOUND' && modelName !== modelsToTry[modelsToTry.length - 1]) {
+          lastError = data.error.message || 'NOT_FOUND'
+          continue
+        }
+        throw new Error(`Gemini API error: ${data.error.message || JSON.stringify(data.error)}`)
+      }
+
+      const content = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || ''
+      if (!content) {
+        throw new Error('Gemini returned empty response. ' + JSON.stringify(data).slice(0, 300))
+      }
+      return content
+    } catch (e: any) {
+      // If it's a 404-like error and we have more models to try, continue
+      if (modelName !== modelsToTry[modelsToTry.length - 1] && (
+        e.message?.includes('404') || e.message?.includes('NOT_FOUND')
+      )) {
+        lastError = e.message
+        continue
+      }
+      throw e
+    }
   }
 
-  const data = await res.json()
-
-  // Check for Gemini-specific errors in the response
-  if (data.error) {
-    throw new Error(`Gemini API error: ${data.error.message || JSON.stringify(data.error)}`)
-  }
-
-  const content = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || ''
-  if (!content) {
-    throw new Error('Gemini returned empty response. ' + JSON.stringify(data).slice(0, 300))
-  }
-  return content
+  throw new Error(`All Gemini models failed. Last error: ${lastError}`)
 }
 
 // ─── Ollama (local) ───

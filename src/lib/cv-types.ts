@@ -221,9 +221,10 @@ export const AVAILABLE_MODELS: AvailableModel[] = [
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', badge: 'اقتصادي' },
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
   { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'anthropic', badge: 'سريع' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'gemini', badge: 'سريع' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'gemini', badge: 'قوي' },
-  { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', provider: 'gemini', badge: 'تجريبي' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'gemini', badge: 'مستقر' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini', badge: 'سريع' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'gemini', badge: 'قوي' },
+  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'gemini', badge: 'اقتصادي' },
   { id: 'qwen2.5', name: 'Qwen 2.5', provider: 'ollama', badge: 'محلي' },
   { id: 'llama3.2', name: 'Llama 3.2', provider: 'ollama', badge: 'محلي' },
 ]
