@@ -90,10 +90,20 @@ export function Generator() {
       })
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.error || 'فشل توليد السيرة الذاتية')
+        toast.error(data.error || 'فشل توليد السيرة الذاتية', {
+          duration: 6000,
+        })
         return
       }
-      toast.success('تم توليد السيرة الذاتية!')
+      // If we fell back to Z.ai, inform the user
+      if (data.fellBack) {
+        toast.success(`تم التوليد باستخدام Z.ai GLM-4.5 (احتياطي)`, {
+          description: `المزود الأصلي (${data.usedProvider}) فشل — تم التحويل تلقائياً`,
+          duration: 5000,
+        })
+      } else {
+        toast.success('تم توليد السيرة الذاتية!')
+      }
       setCurrentResume(data.resume.id, data.cvData)
       setAccentColor(data.resume.accentColor)
       setPreviewOpen(true)
@@ -253,7 +263,15 @@ export function Generator() {
 
           {/* Provider */}
           <div className="space-y-2">
-            <label className="text-xs text-muted-foreground font-medium">المزوّد المفضّل</label>
+            <label className="text-xs text-muted-foreground font-medium flex items-center justify-between">
+              <span>المزوّد المفضّل</span>
+              {provider === 'zai' && (
+                <span className="text-emerald-400 text-[10px]">● مجاني وغير محدود</span>
+              )}
+              {provider !== 'zai' && (
+                <span className="text-amber-400 text-[10px]">⚠ يحتاج مفتاح API</span>
+              )}
+            </label>
             <Select value={provider} onValueChange={(v) => {
               setProvider(v as Provider)
               // Auto-set first matching model
@@ -273,6 +291,16 @@ export function Generator() {
             </Select>
           </div>
         </div>
+
+        {/* Recommendation banner for non-Z.ai providers */}
+        {provider !== 'zai' && (
+          <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex items-start gap-2">
+            <span>💡</span>
+            <div>
+              <strong>نصيحة:</strong> Z.ai GLM-4.5 مجاني وغير محدود ويعمل دائماً. الأنظمة الأخرى تحتاج مفاتيح API وقد تنفد حصتها. إذا فشل المزود المختار، سنحاول تلقائياً استخدام Z.ai.
+            </div>
+          </div>
+        )}
 
         {/* Model picker (collapses on mobile) */}
         <div className="mt-3">
