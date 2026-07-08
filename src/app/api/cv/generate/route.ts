@@ -66,14 +66,24 @@ const SYSTEM_PROMPT = `أنت مساعد متخصص في إنشاء السير �
 
 أعد JSON فقط بدون أي شرح أو نص إضافي.`
 
-// ─── Z.ai (using fetch directly, no SDK — works on Vercel) ───
+// ─── Z.ai (direct fetch, works on Vercel via env vars) ───
 async function callZai(model: string, text: string, temperature: number): Promise<string> {
-  // Z.ai credentials from environment variables (configured on Vercel)
-  const baseUrl = process.env.ZAI_BASE_URL || 'https://internal-api.z.ai/v1'
-  const apiKey = process.env.ZAI_API_KEY
-  const token = process.env.ZAI_TOKEN
-  const userId = process.env.ZAI_USER_ID
-  const chatId = process.env.ZAI_CHAT_ID
+  // Trim and sanitize ZAI_BASE_URL — Vercel env vars sometimes contain trailing whitespace/newlines
+  const rawBaseUrl = (process.env.ZAI_BASE_URL || '').trim()
+  const baseUrl = rawBaseUrl || 'https://internal-api.z.ai/v1'
+
+  // Validate URL — prevent "Failed to parse URL" errors
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(`${baseUrl}/chat/completions`)
+  } catch (e: any) {
+    throw new Error(`ZAI_BASE_URL غير صالح: "${baseUrl}". تأكد من إضافته بصيغة https://internal-api.z.ai/v1 بدون فراغات.`)
+  }
+
+  const apiKey = (process.env.ZAI_API_KEY || '').trim()
+  const token = (process.env.ZAI_TOKEN || '').trim()
+  const userId = (process.env.ZAI_USER_ID || '').trim()
+  const chatId = (process.env.ZAI_CHAT_ID || '').trim()
 
   if (!apiKey && !token) {
     throw new Error('بيانات اعتماد Z.ai غير مُهيأة. أضف ZAI_TOKEN و ZAI_USER_ID في متغيرات البيئة على Vercel.')
@@ -98,7 +108,7 @@ async function callZai(model: string, text: string, temperature: number): Promis
   if (userId) body.user_id = userId
   if (chatId) body.chat_id = chatId
 
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  const res = await fetch(parsedUrl.toString(), {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -167,9 +177,9 @@ async function callAnthropic(model: string, apiKey: string, text: string, temper
   return data.content?.[0]?.text || ''
 }
 
-// ─── Google Gemini (v1beta — generateContent endpoint) ───
+// ─── Google Gemini (v1beta generateContent endpoint) ───
 async function callGemini(model: string, apiKey: string, text: string, temperature: number): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
 
   const res = await fetch(url, {
     method: 'POST',
@@ -194,17 +204,27 @@ async function callGemini(model: string, apiKey: string, text: string, temperatu
 
   if (!res.ok) {
     const err = await res.text().catch(() => '')
-    throw new Error(`Gemini error ${res.status}: ${err.slice(0, 200)}`)
+    throw new Error(`Gemini error ${res.status}: ${err.slice(0, 300)}`)
   }
 
   const data = await res.json()
+
+  // Check for Gemini-specific errors in the response
+  if (data.error) {
+    throw new Error(`Gemini API error: ${data.error.message || JSON.stringify(data.error)}`)
+  }
+
   const content = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || ''
+  if (!content) {
+    throw new Error('Gemini returned empty response. ' + JSON.stringify(data).slice(0, 300))
+  }
   return content
 }
 
 // ─── Ollama (local) ───
 async function callOllama(model: string, baseUrl: string, text: string, temperature: number): Promise<string> {
-  const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
+  const cleanBaseUrl = baseUrl.replace(/\/$/, '')
+  const res = await fetch(`${cleanBaseUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -249,6 +269,15 @@ function parseJson(content: string): CvData | null {
   }
 }
 
+// ─── Provider labels for error messages ───
+const PROVIDER_NAMES: Record<Provider, string> = {
+  zai: 'Z.ai GLM',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic Claude',
+  gemini: 'Google Gemini',
+  ollama: 'Ollama',
+}
+
 // ─── Main POST handler ───
 export async function POST(req: NextRequest) {
   const user = await getSession()
@@ -273,43 +302,60 @@ export async function POST(req: NextRequest) {
 
     let rawContent = ''
 
-    // Try requested provider, fall back to Z.ai (always available on Vercel via env vars)
-    const providers: Provider[] = [useProvider]
-    if (useProvider !== 'zai') providers.push('zai')
-
-    let lastError = ''
-    for (const p of providers) {
-      try {
-        switch (p) {
-          case 'zai':
-            rawContent = await callZai(useProvider === 'zai' ? useModel : 'glm-4.5', text, temperature)
-            break
-          case 'openai':
-            if (!settings?.openaiKey) throw new Error('لا يوجد مفتاح OpenAI')
-            rawContent = await callOpenAI(useModel, settings.openaiKey, text, temperature)
-            break
-          case 'anthropic':
-            if (!settings?.anthropicKey) throw new Error('لا يوجد مفتاح Anthropic')
-            rawContent = await callAnthropic(useModel, settings.anthropicKey, text, temperature)
-            break
-          case 'gemini':
-            if (!settings?.geminiKey) throw new Error('لا يوجد مفتاح Gemini')
-            rawContent = await callGemini(useModel, settings.geminiKey, text, temperature)
-            break
-          case 'ollama':
-            rawContent = await callOllama(useModel, settings?.ollamaUrl || 'http://localhost:11434', text, temperature)
-            break
-        }
-        if (rawContent) break
-      } catch (e: any) {
-        lastError = e?.message || 'خطأ غير معروف'
-        console.error(`Provider ${p} failed:`, lastError)
+    // === Use ONLY the selected provider — no silent fallback ===
+    // If user explicitly selects Gemini/OpenAI/Claude, use only that.
+    // Show clear error if it fails (don't hide behind Z.ai fallback).
+    try {
+      switch (useProvider) {
+        case 'zai':
+          rawContent = await callZai(useModel, text, temperature)
+          break
+        case 'openai':
+          if (!settings?.openaiKey) {
+            throw new Error('مفتاح OpenAI غير مُهيأ. اذهب إلى "إعدادات API" وأضف مفتاحك.')
+          }
+          rawContent = await callOpenAI(useModel, settings.openaiKey, text, temperature)
+          break
+        case 'anthropic':
+          if (!settings?.anthropicKey) {
+            throw new Error('مفتاح Anthropic غير مُهيأ. اذهب إلى "إعدادات API" وأضف مفتاحك.')
+          }
+          rawContent = await callAnthropic(useModel, settings.anthropicKey, text, temperature)
+          break
+        case 'gemini':
+          if (!settings?.geminiKey) {
+            throw new Error('مفتاح Google Gemini غير مُهيأ. اذهب إلى "إعدادات API" وأضف مفتاحك.')
+          }
+          rawContent = await callGemini(useModel, settings.geminiKey, text, temperature)
+          break
+        case 'ollama':
+          rawContent = await callOllama(
+            useModel,
+            settings?.ollamaUrl || 'http://localhost:11434',
+            text,
+            temperature
+          )
+          break
+        default:
+          throw new Error(`مزود غير معروف: ${useProvider}`)
       }
+    } catch (e: any) {
+      const providerName = PROVIDER_NAMES[useProvider] || useProvider
+      const errMsg = e?.message || 'خطأ غير معروف'
+      console.error(`Provider ${useProvider} (${useModel}) failed:`, errMsg)
+      return NextResponse.json(
+        {
+          error: `فشل ${providerName}: ${errMsg}`,
+          provider: useProvider,
+          model: useModel,
+        },
+        { status: 500 }
+      )
     }
 
     if (!rawContent) {
       return NextResponse.json(
-        { error: `فشل الاتصال بجميع المزودين. آخر خطأ: ${lastError}` },
+        { error: `${PROVIDER_NAMES[useProvider]} أعاد استجابة فارغة. حاول مرة أخرى.` },
         { status: 500 }
       )
     }
@@ -317,7 +363,10 @@ export async function POST(req: NextRequest) {
     const cvData = parseJson(rawContent)
     if (!cvData) {
       return NextResponse.json(
-        { error: 'فشل تحليل استجابة الذكاء الاصطناعي. حاول مرة أخرى.' },
+        {
+          error: `فشل تحليل استجابة ${PROVIDER_NAMES[useProvider]} كـ JSON. حاول مرة أخرى أو جرّب نموذجاً آخر.`,
+          rawPreview: rawContent.slice(0, 200),
+        },
         { status: 500 }
       )
     }
